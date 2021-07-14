@@ -12,14 +12,12 @@
 #include "json.hpp"
 #include "spline.h"
 
-//using namespace std;
-
 // for convenience
 using nlohmann::json;
 using std::string;
 using std::vector;
 
-//using json = nlohmann::json;
+
 
 int main() {
     uWS::Hub h;
@@ -97,56 +95,124 @@ int main() {
                             // Previous path's end s and d values 
                             double end_path_s = j[1]["end_path_s"];
                             double end_path_d = j[1]["end_path_d"];
-                            // Sensor Fusion Data, a list of all other cars on the same side 
-                            //   of the road.
+                            // Sensor Fusion Data, a list of all other cars on the same side of the road.
                             vector<vector<double>> sensor_fusion = j[1]["sensor_fusion"];
 
+                            // Provided previous path point size.
                             int prev_size = previous_path_x.size();
 
 
-
+                            // Preventing collisions.
                             if (prev_size > 0)
                             {
                                 car_s = end_path_s;
                             }
 
-                            bool too_close = false;
+
+                            // Prediction : Analysing other cars positions.
+                            bool car_ahead = false;
+                            bool car_left = false;
+                            bool car_righ = false;
+
+                            // bool too_close = false;
 
                             for (int i = 0; i < sensor_fusion.size(); i++)
                             {
                                 //car is in my lane
                                 float d = sensor_fusion[i][6];
-                                if (d < (2 + 4 * lane + 2) && d >(2 + 4 * lane - 2))
-                                {
-                                    double vx = sensor_fusion[i][3];
-                                    double vy = sensor_fusion[i][4];
-                                    double check_speed = sqrt(vx * vx + vy * vy);
-                                    double check_car_s = sensor_fusion[i][5];
+                                int car_lane = -1;
 
-                                    check_car_s += ((double)prev_size * .02 * check_speed);
+                                // is it on the same lane we are
+                                if (d > 0 && d < 4) {
+                                    car_lane = 0;
+                                }
+                                else if (d > 4 && d < 8) {
+                                    car_lane = 1;
+                                }
+                                else if (d > 8 && d < 12) {
+                                    car_lane = 2;
+                                }
+                                if (car_lane < 0) {
+                                    continue;
+                                }
 
-                                    if ((check_car_s > car_s) && ((check_car_s - car_s) < 30))
-                                    {
-                                        //ref_vel = 29.5;
-                                        too_close = true;
-                                        if (lane > 0)
-                                        {
-                                            lane = 0;
-                                        }
-                                    }
+                                //if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2))
+                                //{
+                                // Find car speed.
+                                double vx = sensor_fusion[i][3];
+                                double vy = sensor_fusion[i][4];
+                                double check_speed = sqrt(vx * vx + vy * vy);
+                                double check_car_s = sensor_fusion[i][5];
 
+                                // Estimate car s position after executing previous trajectory.
+                                check_car_s += ((double)prev_size * .02 * check_speed);
+
+                                if (car_lane == lane) {
+                                    // Car in our lane.
+                                    car_ahead |= check_car_s > car_s && check_car_s - car_s < 30;
+                                }
+                                else if (car_lane - lane == -1) {
+                                    // Car left
+                                    car_left |= car_s - 30 < check_car_s && car_s + 30 > check_car_s;
+                                }
+                                else if (car_lane - lane == 1) {
+                                    // Car right
+                                    car_righ |= car_s - 30 < check_car_s && car_s + 30 > check_car_s;
                                 }
                             }
 
-                            if (too_close)
-                            {
-                                ref_vel -= .224;
+                            // Behavior
+                            double speed_diff = 0;
+                            const double MAX_SPEED = 49.5;
+                            const double MAX_ACC = .224;
+                            if (car_ahead) { // Car ahead
+                                if (!car_left && lane > 0) {
+                                    // if there is no car left and there is a left lane.
+                                    lane--; // Change lane left.
+                                }
+                                else if (!car_righ && lane != 2) {
+                                    // if there is no car right and there is a right lane.
+                                    lane++; // Change lane right.
+                                }
+                                else {
+                                    speed_diff -= MAX_ACC;
+                                }
                             }
-                            else if (ref_vel < 49.5)
-                            {
-                                ref_vel += .224;
+                            else {
+                                if (lane != 1) { // if we are not on the center lane.
+                                    if ((lane == 0 && !car_righ) || (lane == 2 && !car_left)) {
+                                        lane = 1; // Back to center.
+                                    }
+                                }
+                                if (ref_vel < MAX_SPEED) {
+                                    speed_diff += MAX_ACC;
+                                }
                             }
 
+                            /*
+
+                                          if ((check_car_s > car_s) && ((check_car_s - car_s) < 30))
+                                          {
+                                            //ref_vel = 29.5;
+                                            too_close = true;
+                                            if (lane > 0)
+                                            {
+                                              lane = 0;
+                                            }
+                                          }
+
+                                        }
+                                       }
+
+                                      if (too_close)
+                                      {
+                                        ref_vel -= .224;
+                                      }
+                                      else if (ref_vel < 49.5)
+                                      {
+                                        ref_vel += .224;
+                                      }
+                            */
 
                             vector<double> ptsx;
                             vector<double> ptsy;
@@ -182,10 +248,9 @@ int main() {
                                 ptsy.push_back(ref_y_prev);
                                 ptsy.push_back(ref_y);
 
-
                             }
 
-
+                            // Setting up target points in the future.
                             vector<double> next_wp0 = getXY(car_s + 30, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
                             vector<double> next_wp1 = getXY(car_s + 60, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
                             vector<double> next_wp2 = getXY(car_s + 90, (2 + 4 * lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -198,7 +263,7 @@ int main() {
                             ptsy.push_back(next_wp1[1]);
                             ptsy.push_back(next_wp2[1]);
 
-
+                            // Making coordinates to local car coordinates. 
                             for (int i = 0; i < ptsx.size(); i++)
                             {
                                 double shift_x = ptsx[i] - ref_x;
@@ -208,10 +273,12 @@ int main() {
                                 ptsy[i] = (shift_x * sin(0 - ref_yaw) + shift_y * cos(0 - ref_yaw));
                             }
 
+                            // Create the spline.
                             tk::spline s;
 
                             s.set_points(ptsx, ptsy);
 
+                            // Output path points from previous path for continuity.
                             vector<double> next_x_vals;
                             vector<double> next_y_vals;
 
@@ -221,6 +288,7 @@ int main() {
                                 next_y_vals.push_back(previous_path_y[i]);
                             }
 
+                            // Calculate distance y position on 30 m ahead.                    
                             double target_x = 30.0;
                             double target_y = s(target_x);
                             double target_dist = sqrt((target_x) * (target_x)+(target_y) * (target_y));
@@ -251,30 +319,8 @@ int main() {
                             }
 
 
-                            //json msgJson;
-
-                            //vector<double> next_x_vals;
-                            //vector<double> next_y_vals;          
-
-
-
-                            /**
-                             * TODO: define a path made up of (x,y) points that the car will visit
-                             *   sequentially every .02 seconds
-
-                            double dist_inc = 0.5;
-                            for (int i = 0; i < 50; ++i)
-                            {
-                              double next_s = car_s+(i+1)*dist_inc;
-                              double next_d = 6;
-                              vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
-
-                              next_x_vals.push_back(xy[0]);
-                              next_y_vals.push_back(xy[1]);
-                              }
-
-                            */
                             json msgJson;
+
                             msgJson["next_x"] = next_x_vals;
                             msgJson["next_y"] = next_y_vals;
 
