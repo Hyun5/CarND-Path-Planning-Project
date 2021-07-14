@@ -96,7 +96,8 @@ int main() {
                             double end_path_s = j[1]["end_path_s"];
                             double end_path_d = j[1]["end_path_d"];
                             // Sensor Fusion Data, a list of all other cars on the same side of the road.
-                            vector<vector<double>> sensor_fusion = j[1]["sensor_fusion"];
+                            auto sensor_fusion = j[1]["sensor_fusion"];
+                            //vector<vector<double>> sensor_fusion = j[1]["sensor_fusion"];
 
                             // Provided previous path point size.
                             int prev_size = previous_path_x.size();
@@ -113,8 +114,6 @@ int main() {
                             bool car_ahead = false;
                             bool car_left = false;
                             bool car_righ = false;
-
-                            // bool too_close = false;
 
                             for (int i = 0; i < sensor_fusion.size(); i++)
                             {
@@ -136,8 +135,7 @@ int main() {
                                     continue;
                                 }
 
-                                //if (d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2))
-                                //{
+
                                 // Find car speed.
                                 double vx = sensor_fusion[i][3];
                                 double vy = sensor_fusion[i][4];
@@ -189,30 +187,6 @@ int main() {
                                 }
                             }
 
-                            /*
-
-                                          if ((check_car_s > car_s) && ((check_car_s - car_s) < 30))
-                                          {
-                                            //ref_vel = 29.5;
-                                            too_close = true;
-                                            if (lane > 0)
-                                            {
-                                              lane = 0;
-                                            }
-                                          }
-
-                                        }
-                                       }
-
-                                      if (too_close)
-                                      {
-                                        ref_vel -= .224;
-                                      }
-                                      else if (ref_vel < 49.5)
-                                      {
-                                        ref_vel += .224;
-                                      }
-                            */
 
                             vector<double> ptsx;
                             vector<double> ptsy;
@@ -282,7 +256,7 @@ int main() {
                             vector<double> next_x_vals;
                             vector<double> next_y_vals;
 
-                            for (int i = 0; i < previous_path_x.size(); i++)
+                            for (int i = 0; i < prev_size; i++)
                             {
                                 next_x_vals.push_back(previous_path_x[i]);
                                 next_y_vals.push_back(previous_path_y[i]);
@@ -296,8 +270,15 @@ int main() {
                             double x_add_on = 0;
 
 
-                            for (int i = 1; i <= 50 - previous_path_x.size(); i++)
-                            {
+                            for (int i = 1; i < 50 - prev_size; i++) {
+                                ref_vel += speed_diff;
+                                if (ref_vel > MAX_SPEED) {
+                                    ref_vel = MAX_SPEED;
+                                }
+                                else if (ref_vel < MAX_ACC) {
+                                    ref_vel = MAX_ACC;
+                                }
+
                                 double N = (target_dist / (.02 * ref_vel / 2.24));
                                 double x_point = x_add_on + (target_x) / N;
                                 double y_point = s(x_point);
