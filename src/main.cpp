@@ -92,16 +92,16 @@ int main() {
                             // Previous path data given to the Planner
                             auto previous_path_x = j[1]["previous_path_x"];
                             auto previous_path_y = j[1]["previous_path_y"];
+
                             // Previous path's end s and d values 
                             double end_path_s = j[1]["end_path_s"];
                             double end_path_d = j[1]["end_path_d"];
+
                             // Sensor Fusion Data, a list of all other cars on the same side of the road.
                             auto sensor_fusion = j[1]["sensor_fusion"];
-                            //vector<vector<double>> sensor_fusion = j[1]["sensor_fusion"];
 
                             // Provided previous path point size.
                             int prev_size = previous_path_x.size();
-
 
                             // Preventing collisions.
                             if (prev_size > 0)
@@ -109,15 +109,14 @@ int main() {
                                 car_s = end_path_s;
                             }
 
-
                             // Prediction : Analysing other cars positions.
                             bool car_ahead = false;
                             bool car_left = false;
-                            bool car_righ = false;
+                            bool car_right = false;
 
-                            for (int i = 0; i < sensor_fusion.size(); i++)
-                            {
-                                //car is in my lane
+                            for (int i = 0; i < sensor_fusion.size(); i++) {
+
+                                // Car is in my lane
                                 float d = sensor_fusion[i][6];
                                 int car_lane = -1;
 
@@ -135,8 +134,7 @@ int main() {
                                     continue;
                                 }
 
-
-                                // Find car speed.
+                                // Find car speed
                                 double vx = sensor_fusion[i][3];
                                 double vy = sensor_fusion[i][4];
                                 double check_speed = sqrt(vx * vx + vy * vy);
@@ -146,16 +144,16 @@ int main() {
                                 check_car_s += ((double)prev_size * .02 * check_speed);
 
                                 if (car_lane == lane) {
-                                    // Car in our lane.
+                                    // Other car is in our lane.
                                     car_ahead |= check_car_s > car_s && check_car_s - car_s < 30;
                                 }
                                 else if (car_lane - lane == -1) {
-                                    // Car left
+                                    // Other car is in left lane.
                                     car_left |= car_s - 30 < check_car_s && car_s + 30 > check_car_s;
                                 }
                                 else if (car_lane - lane == 1) {
-                                    // Car right
-                                    car_righ |= car_s - 30 < check_car_s && car_s + 30 > check_car_s;
+                                    // Other car is right lane.
+                                    car_right |= car_s - 30 < check_car_s && car_s + 30 > check_car_s;
                                 }
                             }
 
@@ -168,7 +166,7 @@ int main() {
                                     // if there is no car left and there is a left lane.
                                     lane--; // Change lane left.
                                 }
-                                else if (!car_righ && lane != 2) {
+                                else if (!car_right && lane != 2) {
                                     // if there is no car right and there is a right lane.
                                     lane++; // Change lane right.
                                 }
@@ -178,7 +176,7 @@ int main() {
                             }
                             else {
                                 if (lane != 1) { // if we are not on the center lane.
-                                    if ((lane == 0 && !car_righ) || (lane == 2 && !car_left)) {
+                                    if ((lane == 0 && !car_right) || (lane == 2 && !car_left)) {
                                         lane = 1; // Back to center.
                                     }
                                 }
@@ -186,7 +184,6 @@ int main() {
                                     speed_diff += MAX_ACC;
                                 }
                             }
-
 
                             vector<double> ptsx;
                             vector<double> ptsy;
